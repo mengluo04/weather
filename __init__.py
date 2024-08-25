@@ -91,7 +91,6 @@ async def get_weather_noww(bot: Bot, ev: Event):
         await bot.send(at_sender=not ev.is_tome, message=text)
 
 
-# 这里我们额外添加一个触发器`on_suffix`，这个触发器用于在末尾触发命令
 @gs_weather_info.on_suffix('天气预警', block=True)
 @gs_weather_info.on_fullmatch('天气预警', block=True)
 async def get_weather_warn(bot: Bot, ev: Event):
@@ -133,7 +132,6 @@ async def get_weather_warn(bot: Bot, ev: Event):
             # 城市ID，就是要用这个ID请求下面的天气信息
             city_code = pos_data['location'][0]['id']
 
-
     # 再进行一次请求
     weather_resp = await client.get(
         'https://devapi.qweather.com/v7/warning/now',
@@ -162,6 +160,79 @@ async def get_weather_warn(bot: Bot, ev: Event):
             ret.append(f'{title}\n{text}')
 
         await bot.send(at_sender=not ev.is_tome, message='\n\n'.join(ret))
+
+
+@gs_weather_info.on_suffix('天气预报', block=True)
+@gs_weather_info.on_fullmatch('天气预报', block=True)
+async def get_weather_forecast(bot: Bot, ev: Event):
+    # 获取用户输入的城市，如果为空，做出提醒，并用return中断函数运行
+    text = ev.text.strip()
+    # 创建一个请求客户端
+    client = httpx.AsyncClient()
+
+    # 如果用户没有输入任何参数
+    if not text:
+        # 进行检查是否有绑定
+        data = await WeatherBind.get_user_city(ev.user_id, ev.bot_id)
+        # 如果连绑定都没有，则提醒用户
+        if data is None:
+            return await bot.send(at_sender=not ev.is_tome, message='请输入城市名称，或使用 tq绑定城市【城市名称】 命令！')
+        city_code = data.city_code
+    # 有输入参数则直接使用用户输入
+    else:
+        # 根据用户传入的信息，请求城市ID和城市完整名称
+        # ev是当前事件的一系列可用信息，例如ev.text就是去除了命令之后的用户输入
+        # 例如用户输入 天气漳州 ，ev.text = 漳州
+        # 要获取完整用户输入，ev.raw_text = 天气漳州，ev.command = 天气
+        pos_resp = await client.get(
+            'https://geoapi.qweather.com/v2/city/lookup',
+            params={
+                'location': text,
+                'key': KEY,
+            },
+        )
+        # 解析结果为pyhon中的字典
+        pos_data = pos_resp.json()
+        # 获取结果中的响应代码
+        pos_retcode = pos_data['code']
+
+        # 响应码不为200则发生了报错，我们把错误码返回给用户，便于定位错误信息
+        if pos_retcode != '200':
+            await bot.send(at_sender=not ev.is_tome, message=f'[天气] 获取天气信息失败！错误码为 {pos_retcode}')
+        else:
+            # 城市ID，就是要用这个ID请求下面的天气信息
+            city_code = pos_data['location'][0]['id']
+
+    # 再进行一次请求
+    weather_resp = await client.get(
+        'https://devapi.qweather.com/v7/weather/3d',
+        params={
+            'location': city_code,
+            'key': KEY,
+        },
+    )
+
+    weather_data = weather_resp.json()
+    weather_retcode = weather_data['code']
+
+    # 错误码处理"
+    if weather_data['code'] != '200':
+        await bot.send(at_sender=not ev.is_tome, message=f'[天气] 获取天气预报信息失败！错误码为 {weather_retcode}！'
+                       )
+    else:
+        ret = []
+        for day in weather_data['daily']:
+            # 日期
+            date = day['fxDate']
+            # 最低温度
+            min_temp = day['tempMin']
+            # 最高温度
+            max_temp = day['tempMax']
+
+            # 将结果进行字符串拼贴，便于把最后的结果呈现给用户
+            ret.append(f'{date}：{min_temp} 度 ~ {max_temp} 度')
+
+        await bot.send(at_sender=not ev.is_tome, message='\n'.join(ret))
 
 
 @gs_weather_info.on_command('tq绑定城市')
