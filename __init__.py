@@ -21,7 +21,6 @@ async def get_weather_noww(bot: Bot, ev: Event):
 
     # 如果用户没有输入任何参数
     if not text:
-
         # 进行检查是否有绑定
         data = await WeatherBind.get_user_city(ev.user_id, ev.bot_id)
         # 如果连绑定都没有，则提醒用户
@@ -31,29 +30,12 @@ async def get_weather_noww(bot: Bot, ev: Event):
         city_code = data.city_code
     # 有输入参数则直接使用用户输入
     else:
-        # 根据用户传入的信息，请求城市ID和城市完整名称
-        # ev是当前事件的一系列可用信息，例如ev.text就是去除了命令之后的用户输入
-        # 例如用户输入 天气漳州 ，ev.text = 漳州
-        # 要获取完整用户输入，ev.raw_text = 天气漳州，ev.command = 天气
-        pos_resp = await client.get(
-            'https://geoapi.qweather.com/v2/city/lookup',
-            params={
-                'location': text,
-                'key': KEY,
-            },
-        )
-        # 解析结果为pyhon中的字典
-        pos_data = pos_resp.json()
-        # 获取结果中的响应代码
-        pos_retcode = pos_data['code']
-
-        # 响应码不为200则发生了报错，我们把错误码返回给用户，便于定位错误信息
-        if pos_retcode != '200':
-            await bot.send(at_sender=not ev.is_tome, message=f'[天气] 获取天气信息失败！错误码为 {pos_retcode}')
+        city_code, city_name = await get_city_code_by_name(text)
+        if not city_code:
+            return await bot.send(at_sender=not ev.is_tome, message='你输入的城市不存在, 请检查输入是否有误!')
         else:
-            # 城市ID，就是要用这个ID请求下面的天气信息
-            city_code = pos_data['location'][0]['id']
-            city_name = pos_data['location'][0]['name']
+            city_code = city_code
+            city_name = city_name
 
     # 再进行一次请求
     weather_resp = await client.get(
@@ -69,7 +51,7 @@ async def get_weather_noww(bot: Bot, ev: Event):
 
     # 错误码处理"
     if weather_data['code'] != '200':
-        await bot.send(at_sender=not ev.is_tome, message=f'[天气] 获取天气信息失败！错误码为 {weather_retcode}！'
+        await bot.send(at_sender=not ev.is_tome, message=f'获取天气信息失败！错误码为 {weather_retcode}！'
                        )
     else:
         # 现在温度
@@ -109,28 +91,12 @@ async def get_weather_warn(bot: Bot, ev: Event):
         city_code = data.city_code
     # 有输入参数则直接使用用户输入
     else:
-        # 根据用户传入的信息，请求城市ID和城市完整名称
-        # ev是当前事件的一系列可用信息，例如ev.text就是去除了命令之后的用户输入
-        # 例如用户输入 天气漳州 ，ev.text = 漳州
-        # 要获取完整用户输入，ev.raw_text = 天气漳州，ev.command = 天气
-        pos_resp = await client.get(
-            'https://geoapi.qweather.com/v2/city/lookup',
-            params={
-                'location': text,
-                'key': KEY,
-            },
-        )
-        # 解析结果为pyhon中的字典
-        pos_data = pos_resp.json()
-        # 获取结果中的响应代码
-        pos_retcode = pos_data['code']
-
-        # 响应码不为200则发生了报错，我们把错误码返回给用户，便于定位错误信息
-        if pos_retcode != '200':
-            await bot.send(at_sender=not ev.is_tome, message=f'[天气] 获取天气信息失败！错误码为 {pos_retcode}')
+        city_code, city_name = await get_city_code_by_name(text)
+        if not city_code:
+            return await bot.send(at_sender=not ev.is_tome, message='你输入的城市不存在, 请检查输入是否有误!')
         else:
-            # 城市ID，就是要用这个ID请求下面的天气信息
-            city_code = pos_data['location'][0]['id']
+            city_code = city_code
+            city_name = city_name
 
     # 再进行一次请求
     weather_resp = await client.get(
@@ -146,7 +112,7 @@ async def get_weather_warn(bot: Bot, ev: Event):
 
     # 错误码处理"
     if weather_data['code'] != '200':
-        await bot.send(at_sender=not ev.is_tome, message=f'[天气] 获取天气预警信息失败！错误码为 {weather_retcode}！'
+        await bot.send(at_sender=not ev.is_tome, message=f'获取天气预警信息失败！错误码为 {weather_retcode}！'
                        )
     else:
         ret = []
@@ -178,30 +144,15 @@ async def get_weather_forecast(bot: Bot, ev: Event):
         if data is None:
             return await bot.send(at_sender=not ev.is_tome, message='请输入城市名称，或使用 tq绑定城市【城市名称】 命令！')
         city_code = data.city_code
+        city_name = data.city_name
     # 有输入参数则直接使用用户输入
     else:
-        # 根据用户传入的信息，请求城市ID和城市完整名称
-        # ev是当前事件的一系列可用信息，例如ev.text就是去除了命令之后的用户输入
-        # 例如用户输入 天气漳州 ，ev.text = 漳州
-        # 要获取完整用户输入，ev.raw_text = 天气漳州，ev.command = 天气
-        pos_resp = await client.get(
-            'https://geoapi.qweather.com/v2/city/lookup',
-            params={
-                'location': text,
-                'key': KEY,
-            },
-        )
-        # 解析结果为pyhon中的字典
-        pos_data = pos_resp.json()
-        # 获取结果中的响应代码
-        pos_retcode = pos_data['code']
-
-        # 响应码不为200则发生了报错，我们把错误码返回给用户，便于定位错误信息
-        if pos_retcode != '200':
-            await bot.send(at_sender=not ev.is_tome, message=f'[天气] 获取天气信息失败！错误码为 {pos_retcode}')
+        city_code, city_name = await get_city_code_by_name(text)
+        if not city_code:
+            return await bot.send(at_sender=not ev.is_tome, message='你输入的城市不存在, 请检查输入是否有误!')
         else:
-            # 城市ID，就是要用这个ID请求下面的天气信息
-            city_code = pos_data['location'][0]['id']
+            city_code = city_code
+            city_name = city_name
 
     # 再进行一次请求
     weather_resp = await client.get(
@@ -217,7 +168,7 @@ async def get_weather_forecast(bot: Bot, ev: Event):
 
     # 错误码处理"
     if weather_data['code'] != '200':
-        await bot.send(at_sender=not ev.is_tome, message=f'[天气] 获取天气预报信息失败！错误码为 {weather_retcode}！'
+        await bot.send(at_sender=not ev.is_tome, message=f'获取天气预报信息失败！错误码为 {weather_retcode}！'
                        )
     else:
         ret = []
@@ -231,8 +182,8 @@ async def get_weather_forecast(bot: Bot, ev: Event):
 
             # 将结果进行字符串拼贴，便于把最后的结果呈现给用户
             ret.append(f'{date}：{min_temp} 度 ~ {max_temp} 度')
-
-        await bot.send(at_sender=not ev.is_tome, message='\n'.join(ret))
+        text = '\n'.join(ret)
+        await bot.send(at_sender=not ev.is_tome, message=f"{city_name}3日天气预报\n{text}")
 
 
 @gs_weather_info.on_command('tq绑定城市')
@@ -241,13 +192,24 @@ async def bind_city(bot: Bot, ev: Event):
     text = ev.text.strip()
     if not text:
         return await bot.send(at_sender=True, message='请输入城市名称！')
+    [city_code, city_name] = await get_city_code_by_name(text)
+    if not city_code:
+        return await bot.send(at_sender=not ev.is_tome, message='你输入的城市不存在, 请检查输入是否有误!')
+    else:
+        await WeatherBind.bind_user_city(
+            ev.user_id, ev.bot_id, {'city_code': city_code, 'city_name': city_name}
+        )
+        return await bot.send(at_sender=not ev.is_tome, message=f'绑定城市 {city_name} 成功！')
 
+
+# 根据城市名称获取城市id
+async def get_city_code_by_name(name: str) -> [str, str]:
     # 进行一次请求，我们只需要存储最后的城市ID即可
     client = httpx.AsyncClient()
     pos_resp = await client.get(
         'https://geoapi.qweather.com/v2/city/lookup',
         params={
-            'location': text,
+            'location': name,
             'key': KEY,
         },
     )
@@ -257,15 +219,9 @@ async def bind_city(bot: Bot, ev: Event):
 
     # 如果根据用户输入，无法找到对应城市，则发出提醒
     if pos_retcode != '200':
-        return await bot.send(at_sender=not ev.is_tome, message='你输入的城市不存在, 请检查输入是否有误!')
+        return [None, None]
     else:
         # 获取城市ID
         city_code = pos_data['location'][0]['id']
         city_name = pos_data['location'][0]['name']
-
-        # 然后把处理后的数据插入数据库，和UserID相对应
-        # 这个内置函数可以接受多个ID的插入，方便后续多绑定
-        await WeatherBind.bind_user_city(
-            ev.user_id, ev.bot_id, {'city_code': city_code, 'city_name': city_name}
-        )
-        return await bot.send(at_sender=not ev.is_tome, message=f'绑定城市 {city_name} 成功！')
+        return city_code, city_name
